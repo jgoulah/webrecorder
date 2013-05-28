@@ -1,0 +1,20 @@
+#!/bin/sh
+
+if [ -z $1 ]; then
+ echo "usage: $0 <file>"
+ exit;
+fi
+
+file=$1
+
+id=${file%.*}
+echo $id
+
+inputs=""
+for f in $(ls ${id}*); do
+  inputs="$inputs -i $f" 
+done
+
+echo $inputs
+
+avconv -y $inputs -acodec copy -vcodec copy output.mkv

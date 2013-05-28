@@ -1,0 +1,26 @@
+#!/bin/sh
+
+if [ -z $1 ]; then
+ echo "usage: $0 <file>"
+ exit;
+fi
+
+file=$1
+id=${file%.*}
+
+for f in $(ls ${id}*); do
+  ext=${f##*.}
+
+  case "$ext" in
+  "webm")
+    echo "video length"
+    avconv -i $f 2>&1 | grep Duration | awk {'print $2'} | sed s/,//g
+    ;;
+  "wav")
+    echo "wav length:"
+    soxi -D $f
+    ;;
+  esac
+
+  echo "\n"
+done
