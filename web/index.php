@@ -1,22 +1,4 @@
-
-<!DOCTYPE html>
-<!--
-Copyright 2012 Eric Bidelman
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-     http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
-Author: Eric Bidelman (ebidel@)
--->
+<!doctype html>
 <html>
 <head>
 <meta charset="utf-8" />
@@ -77,7 +59,6 @@ h2 {
 </div>
 </section>
 
-<!--<script src="libwebp-0.1.3.min.js"></script>-->
 <script src="js/whammy.min.js"></script>
 <script src="js/recorder.js"></script>
 <script src="js/jquery.min.js"></script>
@@ -102,23 +83,77 @@ window.AudioContext = window.AudioContext || window.webkitAudioContext;
       navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia;
       window.URL = window.URL || window.webkitURL;
 
+var CANVAS_WIDTH = 320;
+var CANVAS_HEIGHT = 240;
 var ORIGINAL_DOC_TITLE = document.title;
-var video = $('video');
+var video = $('video')[0];
+video.width = CANVAS_WIDTH;
+video.height = CANVAS_HEIGHT;
 var canvas = document.createElement('canvas'); // offscreen canvas.
+canvas.width = CANVAS_WIDTH;
+canvas.height = CANVAS_HEIGHT;
 var rafId = null;
 var startTime = null;
 var endTime = null;
-var frames = [];
 var audio_context;
 var recorder;
+var theStream;
 var tagTime = Date.now();
+// var whammy = new Whammy.Video();
+var whammy = new Whammy.Video(10, 0.6);
 
-function $(selector) {
-  return document.querySelector(selector) || null;
+// function $(selector) {
+//   return document.querySelector(selector) || null;
+// }
+
+function createNoiseGate( connectTo ) {
+    var inputNode = audio_context.createGain();
+    var rectifier = audio_context.createWaveShaper();
+    var ngFollower = audio_context.createBiquadFilter();
+    ngFollower.type = ngFollower.LOWPASS;
+    ngFollower.frequency.value = 10.0;
+
+    // var curve = new Float32Array(65536);
+    // for (var i=-32768; i<32768; i++)
+    //     curve[i+32768] = ((i>0)?i:-i)/32768;
+    // rectifier.curve = curve;
+    // rectifier.connect(ngFollower);
+
+    // var ngGate = audio_context.createWaveShaper();
+    // ngGate.curve = generateNoiseFloorCurve(0.01);
+
+    // ngFollower.connect(ngGate);
+
+    // var gateGain = audio_context.createGain();
+    // gateGain.gain.value = 0.0;
+    // ngGate.connect( gateGain.gain );
+
+    // gateGain.connect( connectTo );
+
+    // inputNode.connect(rectifier);
+    inputNode.connect(ngFollower);
+    return inputNode;
+}
+
+function generateNoiseFloorCurve( floor ) {
+    // "floor" is 0...1
+
+    var curve = new Float32Array(65536);
+    var mappedFloor = floor * 32768;
+
+    for (var i=0; i<32768; i++) {
+        var value = (i<mappedFloor) ? 0 : 1;
+
+        curve[32768-i] = -value;
+        curve[32768+i] = value;
+    }
+    curve[0] = curve[1]; // fixing up the end.
+
+    return curve;
 }
 
 function toggleActivateRecordButton() {
-  var b = $('#record-me');
+  var b = $('#record-me')[0];
   b.textContent = b.disabled ? 'Record' : 'Recording...';
   b.classList.toggle('recording');
   b.disabled = !b.disabled;
@@ -126,7 +161,7 @@ function toggleActivateRecordButton() {
 
 function turnOnCamera(e) {
   e.target.disabled = true;
-  $('#record-me').disabled = false;
+  $('#record-me')[0].disabled = false;
 
   video.controls = false;
 
@@ -152,19 +187,38 @@ function turnOnCamera(e) {
     }, 1000);
   };
 
-  navigator.getUserMedia({video: true, audio: true}, function(stream) {
+  navigator.webkitGetUserMedia({"video": {
+    "mandatory": {
+     "minWidth": "320",
+     "minHeight": "240",
+     "minFrameRate": "10",
+     "maxWidth": "320",
+     "maxHeight": "240",
+     "maxFrameRate": "10"
+    }
+  }, audio: true}, function(stream) {
+    theStream = stream;
     console.log('getUserMedia called');
     video.src = window.URL.createObjectURL(stream);
 
     var input = audio_context.createMediaStreamSource(stream);
-    //input.connect(audio_context.destination);
+    // input.connect(audio_context.destination);
     // connect to zero gained node that connects to destination
-    var zeroGain = audio_context.createGain();
-    zeroGain.gain.value = 0;
-    input.connect(zeroGain);
-    zeroGain.connect(audio_context.destination);
+    // var zeroGain = audio_context.createGain();
+    // zeroGain.gain.value = 0;
+    // input.connect(zeroGain);
+    // zeroGain.connect(audio_context.destination);
 
 console.log('sample rate is '+ audio_context.sampleRate);
+    // recorder = new Recorder(input);
+    modulatorInput = audio_context.createGainNode();
+
+    modulatorGain = audio_context.createGainNode();
+    modulatorGain.gain.value = 4.0;
+    modulatorGain.connect( modulatorInput );
+
+    // input.connect(createNoiseGate(modulatorGain));
+    input.connect(modulatorGain);
     recorder = new Recorder(input);
 
     finishVideoSetup_();
@@ -177,31 +231,46 @@ console.log('sample rate is '+ audio_context.sampleRate);
 };
 
 function record() {
-  var elapsedTime = $('#elasped-time');
+  var elapsedTime = $('#elasped-time')[0];
   var ctx = canvas.getContext('2d');
   var CANVAS_HEIGHT = canvas.height;
   var CANVAS_WIDTH = canvas.width;
 
-  frames = []; // clear existing frames;
   startTime = Date.now();
 
   toggleActivateRecordButton();
-  $('#stop-me').disabled = false;
+  $('#stop-me')[0].disabled = false;
 
   recorder.record(); 
+  var lastFrameTime;
 
   function drawVideoFrame_(time) {
     rafId = requestAnimationFrame(drawVideoFrame_);
 
+    if (typeof lastFrameTime === undefined) { lastFrameTime = time; }
+
+    if (time - lastFrameTime < 90) { return; } // ~10 fps
+
     ctx.drawImage(video, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    document.title = 'Recording...' + Math.round((Date.now() - startTime) / 1000) + 's';
+    // document.title = 'Recording...' + Math.round((Date.now() - startTime) / 1000) + 's';
 
     // Read back canvas as webp.
     //console.time('canvas.dataURL() took');
-    var url = canvas.toDataURL('image/webp', 1); // image/jpeg is way faster :(
+    // var url = canvas.toDataURL('image/webp', 0.75); // image/jpeg is way faster :(
     //console.timeEnd('canvas.dataURL() took');
-    frames.push(url);
+    console.log("adding frame to whammy");
+    try {
+      // debugger;
+      // whammy.add(canvas, time - lastFrameTime);
+      whammy.add(canvas);
+    } catch (e) {
+      console.log("error: ", e);
+    }
+    
+
+    console.log("fps: ", 1000 / (time - lastFrameTime));
+    lastFrameTime = time;
  
     // UInt8ClampedArray (for Worker).
     //frames.push(ctx.getImageData(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT).data);
@@ -214,15 +283,16 @@ function record() {
 };
 
 function stop() {
-  cancelAnimationFrame(rafId);
+  theStream.stop();
+  // cancelAnimationFrame(rafId);
   recorder.stop();
   endTime = Date.now();
-  $('#stop-me').disabled = true;
+  $('#stop-me')[0].disabled = true;
   document.title = ORIGINAL_DOC_TITLE;
 
   toggleActivateRecordButton();
 
-  console.log('frames captured: ' + frames.length + ' => ' +
+  console.log('frames captured: ' + whammy.frames.length + ' => ' +
               ((endTime - startTime) / 1000) + 's video');
 
   embedVideoPreview();
@@ -230,8 +300,8 @@ function stop() {
 
 function embedVideoPreview(opt_url) {
   var url = opt_url || null;
-  var video = $('#video-preview video') || null;
-  var downloadLink = $('#video-preview a[download]') || null;
+  var video = $('#video-preview video')[0] || null;
+  var downloadLink = $('#video-preview a[download]')[0] || null;
 
   if (!video) {
     video = document.createElement('video');
@@ -243,7 +313,7 @@ function embedVideoPreview(opt_url) {
     //video.style.left = '10px';
     video.style.width = canvas.width + 'px';
     video.style.height = canvas.height + 'px';
-    $('#video-preview').appendChild(video);
+    $('#video-preview')[0].appendChild(video);
     
     downloadLink = document.createElement('a');
     downloadLink.download = 'capture.webm';
@@ -268,20 +338,20 @@ console.log('in exportWAV');
       li.appendChild(hf);
       var ul = document.createElement('ul');
       ul.appendChild(li);
-      $('#video-preview').appendChild(ul);
+      $('#video-preview')[0].appendChild(ul);
 
       var fd = new FormData();
       fd.append('audiofile', tagTime + '.wav');
       fd.append('audiodata', blob);
-      jQuery.ajax({
-        type: 'POST',
-        url: '/save.php',
-        data: fd,
-        processData: false,
-        contentType: false
-      }).done(function(data) {
-           console.log(data);
-      });
+      // jQuery.ajax({
+      //   type: 'POST',
+      //   url: '/save.php',
+      //   data: fd,
+      //   processData: false,
+      //   contentType: false
+      // }).done(function(data) {
+      //      console.log(data);
+      // });
 
     });
 
@@ -292,7 +362,7 @@ console.log('in exportWAV');
     //var p1 = document.createElement('p');
     //p1.appendChild(saveLink);
 
-    $('#video-preview').appendChild(p);
+    $('#video-preview')[0].appendChild(p);
     //$('#video-preview').appendChild(p1);
 
   } else {
@@ -307,7 +377,8 @@ console.log('in exportWAV');
   // var webmBlob = encoder.compile();
 
   //if (!url) {
-    var webmBlob = Whammy.fromImageArray(frames, 1000 / 60);
+    // var webmBlob = Whammy.fromImageArray(frames, 1000 / 60);
+    var webmBlob = whammy.compile();
     url = window.URL.createObjectURL(webmBlob);
   //}
 
@@ -318,28 +389,31 @@ console.log('in exportWAV');
   var fd = new FormData();
   fd.append('videofile', tagTime + '.webm');
   fd.append('videodata', webmBlob);
-  jQuery.ajax({
-    type: 'POST',
-    url: '/save.php',
-    data: fd,
-    processData: false,
-    contentType: false
-  }).done(function(data) {
-       console.log(data);
-  });
+  // jQuery.ajax({
+  //   type: 'POST',
+  //   url: '/save.php',
+  //   data: fd,
+  //   processData: false,
+  //   contentType: false
+  // }).done(function(data) {
+  //      console.log(data);
+  // });
 
 
 }
 
 function initEvents() {
-  $('#camera-me').addEventListener('click', turnOnCamera);
-  $('#record-me').addEventListener('click', record);
-  $('#stop-me').addEventListener('click', stop);
+  $('#camera-me')[0].addEventListener('click', turnOnCamera);
+  $('#record-me')[0].addEventListener('click', record);
+  $('#stop-me')[0].addEventListener('click', stop);
 }
 
+setTimeout(function () {
+  initEvents();
+}, 500)
 initEvents();
 
-exports.$ = $;
+// exports.$ = $;
 
 })(window);
 
