@@ -343,15 +343,15 @@ console.log('in exportWAV');
       var fd = new FormData();
       fd.append('audiofile', tagTime + '.wav');
       fd.append('audiodata', blob);
-      // jQuery.ajax({
-      //   type: 'POST',
-      //   url: '/save.php',
-      //   data: fd,
-      //   processData: false,
-      //   contentType: false
-      // }).done(function(data) {
-      //      console.log(data);
-      // });
+      jQuery.ajax({
+        type: 'POST',
+        url: '/save.php',
+        data: fd,
+        processData: false,
+        contentType: false
+      }).done(function(data) {
+           console.log(data);
+      });
 
     });
 
@@ -389,15 +389,15 @@ console.log('in exportWAV');
   var fd = new FormData();
   fd.append('videofile', tagTime + '.webm');
   fd.append('videodata', webmBlob);
-  // jQuery.ajax({
-  //   type: 'POST',
-  //   url: '/save.php',
-  //   data: fd,
-  //   processData: false,
-  //   contentType: false
-  // }).done(function(data) {
-  //      console.log(data);
-  // });
+  jQuery.ajax({
+    type: 'POST',
+    url: '/save.php',
+    data: fd,
+    processData: false,
+    contentType: false
+  }).done(function(data) {
+       console.log(data);
+  });
 
 
 }
