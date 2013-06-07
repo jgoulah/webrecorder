@@ -6,7 +6,7 @@
     var config = cfg || {};
     var bufferLen = config.bufferLen || 4096;
     this.context = source.context;
-    this.node = this.context.createJavaScriptNode(bufferLen, 2, 2);
+    this.node = this.context.createScriptProcessor(bufferLen, 2, 2);
     var worker = new Worker(config.workerPath || WORKER_PATH);
     worker.postMessage({
       command: 'init',
@@ -22,8 +22,7 @@
       worker.postMessage({
         command: 'record',
         buffer: [
-          e.inputBuffer.getChannelData(0),
-          e.inputBuffer.getChannelData(1)
+          e.inputBuffer.getChannelData(0)
         ]
       });
     }
