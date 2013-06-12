@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8" />
 <meta http-equiv="X-UA-Compatible" content="chrome=1" />
-<!--link href="../common.css" rel="stylesheet" type="text/css" media="all"-->
 <title>Record a Video Session</title>
 <style>
 a[download] {
@@ -46,16 +45,10 @@ h2 {
 
 <section>
 <div style="float:left;">
-  <button id="camera-me">1. Turn on camera</button>
-  <h4><code>getUserMedia()</code> feed</h4>
-  <video autoplay></video>
-</div>
-<div id="video-preview">
-  <button id="record-me" disabled>2. Record<!--⚫--></button>
+  <button id="record-me">Record<!--⚫--></button>
   <button id="stop-me" disabled>◼</button>
-  <!--<button id="play-me" disabled>►</button>-->
-  <span id="elasped-time"></span>
-  <h4>.webm recording (no audio)</h4>
+  <h4>video feed</h4>
+  <video autoplay></video>
 </div>
 </section>
 
@@ -99,12 +92,8 @@ var audio_context;
 var recorder;
 var theStream;
 var tagTime = Date.now();
-// var whammy = new Whammy.Video();
 var whammy = new Whammy.Video(10, 0.6);
 
-// function $(selector) {
-//   return document.querySelector(selector) || null;
-// }
 
 function createNoiseGate( connectTo ) {
     var inputNode = audio_context.createGain();
@@ -113,30 +102,11 @@ function createNoiseGate( connectTo ) {
     ngFollower.type = ngFollower.LOWPASS;
     ngFollower.frequency.value = 10.0;
 
-    // var curve = new Float32Array(65536);
-    // for (var i=-32768; i<32768; i++)
-    //     curve[i+32768] = ((i>0)?i:-i)/32768;
-    // rectifier.curve = curve;
-    // rectifier.connect(ngFollower);
-
-    // var ngGate = audio_context.createWaveShaper();
-    // ngGate.curve = generateNoiseFloorCurve(0.01);
-
-    // ngFollower.connect(ngGate);
-
-    // var gateGain = audio_context.createGain();
-    // gateGain.gain.value = 0.0;
-    // ngGate.connect( gateGain.gain );
-
-    // gateGain.connect( connectTo );
-
-    // inputNode.connect(rectifier);
     inputNode.connect(ngFollower);
     return inputNode;
 }
 
 function generateNoiseFloorCurve( floor ) {
-    // "floor" is 0...1
 
     var curve = new Float32Array(65536);
     var mappedFloor = floor * 32768;
@@ -159,9 +129,7 @@ function toggleActivateRecordButton() {
   b.disabled = !b.disabled;
 }
 
-function turnOnCamera(e) {
-  e.target.disabled = true;
-  $('#record-me')[0].disabled = false;
+function turnOnCamera() {
 
   video.controls = false;
 
@@ -198,35 +166,23 @@ function turnOnCamera(e) {
     }
   }, audio: true}, function(stream) {
     theStream = stream;
-    console.log('getUserMedia called');
     video.src = window.URL.createObjectURL(stream);
 
     var input = audio_context.createMediaStreamSource(stream);
-    // input.connect(audio_context.destination);
-    // connect to zero gained node that connects to destination
-    // var zeroGain = audio_context.createGain();
-    // zeroGain.gain.value = 0;
-    // input.connect(zeroGain);
-    // zeroGain.connect(audio_context.destination);
 
-console.log('sample rate is '+ audio_context.sampleRate);
-    // recorder = new Recorder(input);
+    //console.log('sample rate is '+ audio_context.sampleRate);
     modulatorInput = audio_context.createGainNode();
 
     modulatorGain = audio_context.createGainNode();
     modulatorGain.gain.value = 4.0;
     modulatorGain.connect( modulatorInput );
 
-    // input.connect(createNoiseGate(modulatorGain));
     input.connect(modulatorGain);
     recorder = new Recorder(input);
 
     finishVideoSetup_();
   }, function(e) {
-    alert('Fine, you get a movie instead of your beautiful face ;)');
-
-    video.src = 'Chrome_ImF.mp4';
-    finishVideoSetup_();
+    alert('something went wrong');
   });
 };
 
@@ -255,11 +211,7 @@ function record() {
 
     // document.title = 'Recording...' + Math.round((Date.now() - startTime) / 1000) + 's';
 
-    // Read back canvas as webp.
-    //console.time('canvas.dataURL() took');
-    // var url = canvas.toDataURL('image/webp', 0.75); // image/jpeg is way faster :(
-    //console.timeEnd('canvas.dataURL() took');
-    console.log("adding frame to whammy");
+    //console.log("adding frame to whammy");
     try {
       // debugger;
       // whammy.add(canvas, time - lastFrameTime);
@@ -267,16 +219,9 @@ function record() {
     } catch (e) {
       console.log("error: ", e);
     }
-    
 
-    console.log("fps: ", 1000 / (time - lastFrameTime));
+    //console.log("fps: ", 1000 / (time - lastFrameTime));
     lastFrameTime = time;
- 
-    // UInt8ClampedArray (for Worker).
-    //frames.push(ctx.getImageData(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT).data);
-
-    // ImageData
-    //frames.push(ctx.getImageData(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT));
   };
 
   rafId = requestAnimationFrame(drawVideoFrame_);
@@ -284,7 +229,6 @@ function record() {
 
 function stop() {
   theStream.stop();
-  // cancelAnimationFrame(rafId);
   recorder.stop();
   endTime = Date.now();
   $('#stop-me')[0].disabled = true;
@@ -299,92 +243,23 @@ function stop() {
 };
 
 function embedVideoPreview(opt_url) {
-  var url = opt_url || null;
-  var video = $('#video-preview video')[0] || null;
-  var downloadLink = $('#video-preview a[download]')[0] || null;
 
-  if (!video) {
-    video = document.createElement('video');
-    video.autoplay = true;
-    video.controls = true;
-    video.loop = true;
-    //video.style.position = 'absolute';
-    //video.style.top = '70px';
-    //video.style.left = '10px';
-    video.style.width = canvas.width + 'px';
-    video.style.height = canvas.height + 'px';
-    $('#video-preview')[0].appendChild(video);
-    
-    downloadLink = document.createElement('a');
-    downloadLink.download = 'capture.webm';
-    downloadLink.textContent = '[ download video ]';
-    downloadLink.title = 'Download your .webm video';
-    var p = document.createElement('p');
-    p.appendChild(downloadLink);
-
-    recorder.exportWAV(function(blob) {
-console.log('in exportWAV');
-      var url = URL.createObjectURL(blob);
-      var li = document.createElement('li');
-      var au = document.createElement('audio');
-      var hf = document.createElement('a');
-      
-      au.controls = true;
-      au.src = url;
-      hf.href = url;
-      hf.download = new Date().toISOString() + '.wav';
-      hf.innerHTML = hf.download;
-      li.appendChild(au);
-      li.appendChild(hf);
-      var ul = document.createElement('ul');
-      ul.appendChild(li);
-      $('#video-preview')[0].appendChild(ul);
-
-      var fd = new FormData();
-      fd.append('audiofile', tagTime + '.wav');
-      fd.append('audiodata', blob);
-      jQuery.ajax({
-        type: 'POST',
-        url: '/save.php',
-        data: fd,
-        processData: false,
-        contentType: false
-      }).done(function(data) {
-           console.log(data);
-      });
-
+  recorder.exportWAV(function(blob) {
+    var fd = new FormData();
+    fd.append('audiofile', tagTime + '.wav');
+    fd.append('audiodata', blob);
+    jQuery.ajax({
+      type: 'POST',
+      url: '/save.php',
+      data: fd,
+      processData: false,
+      contentType: false
+    }).done(function(data) {
+      console.log(data);
     });
+  });
 
-    //saveLink = document.createElement('a');
-    ////saveLink.download = 'capture.webm';
-    //saveLink.textContent = '[ save video ]';
-    //saveLink.title = 'Save your .webm video';
-    //var p1 = document.createElement('p');
-    //p1.appendChild(saveLink);
-
-    $('#video-preview')[0].appendChild(p);
-    //$('#video-preview').appendChild(p1);
-
-  } else {
-    window.URL.revokeObjectURL(video.src);
-  }
-
-  // https://github.com/antimatter15/whammy
-  // var encoder = new Whammy.Video(1000/60);
-  // frames.forEach(function(dataURL, i) {
-  //   encoder.add(dataURL);
-  // });
-  // var webmBlob = encoder.compile();
-
-  //if (!url) {
-    // var webmBlob = Whammy.fromImageArray(frames, 1000 / 60);
-    var webmBlob = whammy.compile();
-    url = window.URL.createObjectURL(webmBlob);
-  //}
-
-  video.src = url;
-  downloadLink.href = url;
-  //saveLink.href = 'save.php?video='+ url + ' sound='+ soundUrl; 
+  var webmBlob = whammy.compile();
 
   var fd = new FormData();
   fd.append('videofile', tagTime + '.webm');
@@ -399,11 +274,9 @@ console.log('in exportWAV');
        console.log(data);
   });
 
-
 }
 
 function initEvents() {
-  $('#camera-me')[0].addEventListener('click', turnOnCamera);
   $('#record-me')[0].addEventListener('click', record);
   $('#stop-me')[0].addEventListener('click', stop);
 }
@@ -412,8 +285,7 @@ setTimeout(function () {
   initEvents();
 }, 500)
 initEvents();
-
-// exports.$ = $;
+turnOnCamera();
 
 })(window);
 
